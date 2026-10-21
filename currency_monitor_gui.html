@@ -48,7 +48,7 @@
       <div class="crypto-head"><span>АКТИВ</span><span>RUB</span><span>USD</span></div>
       <div id="cryptoRows"></div>
     </section>
-    <p class="source">Источники: часовой кэш Frankfurter и CoinGecko. Кэш обновляется сервером, криптовалюты — примерно раз в 30 секунд.</p>
+    <p class="source">Источники: часовой кэш Frankfurter и CoinGecko. Кэш обновляется сервером, криптовалюты — примерно раз в 15 секунд.</p>
   </main>
   <script>
     const currencies={
@@ -127,8 +127,8 @@
       const errors=[fiatError,cryptoError].filter(Boolean);
       statusEl.textContent=errors.length?(fiatRates.RUB||cryptoRates.bitcoin?"Часть котировок: ":"Котировки временно недоступны: ")+errors.join("; "):"Котировки обновлены";
     }
-    function scheduleFiatCache(delay=10000){if(fiatTimer)clearTimeout(fiatTimer);fiatTimer=setTimeout(loadFiatCache,delay)}
-    function scheduleCrypto(delay=30000){if(cryptoTimer)clearTimeout(cryptoTimer);cryptoTimer=setTimeout(loadCryptoRates,delay)}
+    function scheduleFiatCache(delay=15000){if(fiatTimer)clearTimeout(fiatTimer);fiatTimer=setTimeout(loadFiatCache,delay)}
+    function scheduleCrypto(delay=15000){if(cryptoTimer)clearTimeout(cryptoTimer);cryptoTimer=setTimeout(loadCryptoRates,delay)}
     async function loadFiatCache(){
       fiatError="";
       try{
@@ -137,13 +137,13 @@
         fiatRates=Object.assign({USD:1},payload.rates);renderPairs();renderConverter();
         if(payload.updatedAt)lastUpdateEl.textContent="Последнее обновление: "+new Date(payload.updatedAt).toLocaleString("ru-RU");
       }catch(error){fiatError=describeError(error);console.error(error)}
-      renderStatus();scheduleFiatCache(10000);
+      renderStatus();scheduleFiatCache(15000);
     }
     async function loadCryptoRates(){
       cryptoError="";
       try{cryptoRates=await fetchJson(cryptoUrl,"CoinGecko");renderCrypto();lastUpdateEl.textContent="Последнее обновление: "+new Date().toLocaleString("ru-RU");cryptoRetryDelay=0}
-      catch(error){cryptoError=describeError(error);console.error(error);cryptoRetryDelay=error.code==="RATE_LIMIT"?(cryptoRetryDelay?Math.min(cryptoRetryDelay*2,20*60*1000):60*1000):0}
-      renderStatus();scheduleCrypto(cryptoRetryDelay||30000);
+      catch(error){cryptoError=describeError(error);console.error(error);cryptoRetryDelay=error.code==="RATE_LIMIT"?(cryptoRetryDelay?Math.min(cryptoRetryDelay*2,20*60*1000):10*1000):0}
+      renderStatus();scheduleCrypto(cryptoRetryDelay||15000);
     }
     fromInput.addEventListener("input",renderConverter);toInput.addEventListener("input",recalculateFromTarget);
     fromSelect.addEventListener("change",()=>{fromCode=fromSelect.value;renderConverter()});toSelect.addEventListener("change",()=>{toCode=toSelect.value;renderConverter()});
