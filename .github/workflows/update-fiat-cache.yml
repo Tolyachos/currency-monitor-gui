@@ -1,0 +1,62 @@
+name: Update fiat rates cache
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch Frankfurter rates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data
+          curl --fail --silent --show-error --retry 3 \
+            "https://api.frankfurter.dev/v2/rates?base=USD&quotes=RUB,EUR,KZT,CNY,JPY,TRY" \
+            -o /tmp/frankfurter-rates.json
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          rows = json.loads(Path('/tmp/frankfurter-rates.json').read_text())
+          if not isinstance(rows, list) or not rows:
+              raise SystemExit('Frankfurter returned an empty or invalid response')
+          rates = {'USD': 1}
+          for row in rows:
+              if not isinstance(row, dict) or not row.get('quote') or not isinstance(row.get('rate'), (int, float)):
+                  raise SystemExit('Frankfurter returned an unexpected rate row')
+              rates[row['quote']] = row['rate']
+          required = {'RUB', 'EUR', 'KZT', 'CNY', 'JPY', 'TRY'}
+          if not required.issubset(rates):
+              raise SystemExit(f'Missing currencies: {sorted(required - rates.keys())}')
+          payload = {
+              'source': 'Frankfurter',
+              'date': rows[0].get('date'),
+              'updatedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+              'rates': rates,
+          }
+          Path('data/fiat-rates.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n')
+          PY
+
+      - name: Commit changed cache
+        shell: bash
+        run: |
+          if git diff --quiet -- data/fiat-rates.json; then
+            echo "Rates did not change"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/fiat-rates.json
+          git commit -m "Update fiat rates cache"
+          git push
